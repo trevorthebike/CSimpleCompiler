@@ -1,3 +1,5 @@
+import pdb
+import re
 from cse110A_ast import *
 from typing import Callable,List,Tuple,Optional
 from scanner import Lexeme,Token,Scanner
@@ -127,7 +129,7 @@ class Parser:
     def __init__(self, scanner: Scanner) -> None:
         
         self.scanner = scanner
-
+        self.uf = 0
         # Create a symbol table
         self.symbol_table = SymbolTable()
 
@@ -160,7 +162,7 @@ class Parser:
         # Set the scanner and get the first token
         self.scanner.input_string(s)
         self.to_match = self.scanner.token()
-
+        self.uf = uf
         # start parsing. In your solution, p must contain a list of
         # three address instructions
         p = self.parse_function()
@@ -396,11 +398,60 @@ class Parser:
         loop_start_label = self.nlg.mk_new_label()
         end_label = self.nlg.mk_new_label()
         zero_vr = self.vra.mk_new_vr()
-
         compare_ins = ["%s = int2vr(0);" % (zero_vr), "beq(%s, %s, %s);" % (expr_ast.vr, zero_vr, end_label)]  # Branch out if expression == 0
         branch_ins = ["branch(%s);" % (loop_start_label)]  # Instruction to branch back to the start of the loop (right before evaluating the expression again)
 
-        return original_assignment_program + ["%s:" % (loop_start_label)] + expr_program + compare_ins + loop_program + loop_end_assignment_program + branch_ins + ["%s:" % (end_label)]
+
+        #hw5 loop unrolling
+        def iseligable():
+            #find candidate for iterable\
+            candidatepattern = r'\((\d+)\)'
+            namepattern = r'\b[_a-zA-Z][_a-zA-Z0-9]*\b'
+            rhs_pattern = r'=\s*([_a-zA-Z][_a-zA-Z0-9]*)\s*'
+            lhs_pattern = r'^\s*([_a-zA-Z][_a-zA-Z0-9]*)\s*='
+            innerlooppattern = r'\b(_[_a-zA-Z][_a-zA-Z0-9]*)\b'
+            namematch = (re.search(namepattern, original_assignment_program[1])).group(0)
+            #now check looop_end_program and check that last list member lhs is namematch, check that middle list member is an addi on rhs, 
+            #and check that the value in the intv2 in the first one is 1 (this last one is simliar to finding match.group(1) of candidate)
+            if not namematch:
+                return False
+            if int(re.search(candidatepattern, loop_end_assignment_program[0]).group(1)) != 1:
+                return False
+            if re.search(rhs_pattern, loop_end_assignment_program[1]).group(1) != 'addi':
+                return False
+            if re.search(lhs_pattern, loop_end_assignment_program[2]).group(1) != namematch:
+                return False
+            for line in loop_program:
+                if re.search(lhs_pattern, line).group(1) == namematch:
+                    return False
+            if re.search(rhs_pattern, expr_program[1]).group(1) != "lti":
+                return False
+            if re.search(innerlooppattern, expr_program[1]).group(1) != namematch:
+                return False
+            numofloops = int(re.search(candidatepattern, expr_program[0]).group(1))
+            if self.uf != 0 and numofloops % self.uf != 0: #need to figure out -uf command link arg
+                return False
+            numofloopsreduced = numofloops / self.uf
+            #loopmatch = loopmatch.group(1)
+            #pdb.set_trace()
+            return True     
+
+        def loop_unroll():
+            if iseligable():
+                numofloops = int(re.search(r'\((\d+)\)', expr_program[0]).group(1))
+                numofloopsreduced = int(numofloops / self.uf)
+                unrolled_body = []
+                for _ in range(numofloopsreduced):
+                    unrolled_body.extend(loop_program)
+                    unrolled_body.extend(loop_end_assignment_program)
+                #pdb.set_trace()
+                return original_assignment_program + ["%s:" % loop_start_label] + expr_program + compare_ins + unrolled_body + branch_ins + ["%s:" % end_label] #this is currently not working but good proggress
+           
+        if(self.uf):
+            loop_unroll()
+        else:
+            return original_assignment_program + ["%s:" % (loop_start_label)] + expr_program + compare_ins + loop_program + loop_end_assignment_program + branch_ins + ["%s:" % (end_label)]
+
 
     # you need to build and return an AST
     def parse_expr(self) -> ASTNode:
