@@ -314,7 +314,7 @@ class Parser:
     def parse_assignment_statement(self) -> List[str]:
         i = self.parse_assignment_statement_base()
         self.eat(Token.SEMI)
-        return i;
+        return i
 
     # you need to return a list of three address instructions
     def parse_assignment_statement_base(self) -> List[str]:
@@ -436,11 +436,15 @@ class Parser:
         def loop_unroll() -> List[str]:
             unrolled_body = []
             for _ in range(self.uf):
+                #numofloops = int(re.search(r'\((\d+)\)', expr_program[0]).group(1))
+                #numofloopsreduced = int(numofloops / self.uf)
+
                 unrolled_body.extend(loop_program)
                 unrolled_body.extend(loop_end_assignment_program)
             return original_assignment_program + [f"{loop_start_label}:"] + expr_program + compare_ins + unrolled_body + branch_ins + [f"{end_label}:"]
+        numofloops = int(re.search(r'\((\d+)\)', expr_program[0]).group(1))
 
-        if self.uf and is_eligible():
+        if self.uf and numofloops%self.uf == 0 and is_eligible():
             return loop_unroll()
         else:
             return original_assignment_program + ["%s:" % (loop_start_label)] + expr_program + compare_ins + loop_program + loop_end_assignment_program + branch_ins + ["%s:" % (end_label)]
