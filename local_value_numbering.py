@@ -80,9 +80,11 @@ def LVN(program):
                     rhs2, global_counter = get_new_name(rhs2, var_table, global_counter)
                 rhs = f"{op}({rhs1},{rhs2})"
                 if rhs in value_table:
-                    lhs_new = value_table[rhs]
+                    rhs_new = value_table[rhs]
+                    #pdb.set_trace()
+                    lhs_new, global_counter = get_new_name(lhs, var_table, global_counter)
                     replacement_count += 1
-                    new_block.append(f"{lhs} = {lhs_new};")
+                    new_block.append(f"{lhs_new} = {rhs_new};")
                 else:
                     lhs_new, global_counter = get_new_name(lhs, var_table, global_counter)
                     value_table[rhs] = lhs_new
