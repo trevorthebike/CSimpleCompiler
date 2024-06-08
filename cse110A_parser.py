@@ -398,10 +398,8 @@ class Parser:
         zero_vr = self.vra.mk_new_vr()
         compare_ins = ["%s = int2vr(0);" % (zero_vr), "beq(%s, %s, %s);" % (expr_ast.vr, zero_vr, end_label)]  # Branch out if expression == 0
         branch_ins = ["branch(%s);" % (loop_start_label)]  # Instruction to branch back to the start of the loop (right before evaluating the expression again)
-
-        #hw5 loop unrolling
+        # Helper function to determine if loop unrolling is eligible
         def is_eligible():
-            #find candidate for iterable\
             candidatepattern = r'\((\d+)\)'
             namepattern = r'\b[_a-zA-Z][_a-zA-Z0-9]*\b'
             rhs_pattern = r'=\s*([_a-zA-Z][_a-zA-Z0-9]*)\s*'
@@ -425,26 +423,21 @@ class Parser:
                 return False
             if re.search(innerlooppattern, expr_program[1]).group(1) != namematch:
                 return False
-            numofloops = int(re.search(candidatepattern, expr_program[0]).group(1))
-            if self.uf != 0 and numofloops % self.uf != 0: #need to figure out -uf command link arg
+            # Determine the number of loops from the condition
+            numofloops = int(re.search(r'\((\d+)\)', expr_program[0]).group(1))
+            if self.uf != 0 and numofloops % self.uf != 0:
                 return False
-            #numofloopsreduced = numofloops / self.uf
-            #loopmatch = loopmatch.group(1)
-            #pdb.set_trace()
             return True     
-
+        
+        # Helper function to unroll the loop
         def loop_unroll() -> List[str]:
             unrolled_body = []
             for _ in range(self.uf):
-                #numofloops = int(re.search(r'\((\d+)\)', expr_program[0]).group(1))
-                #numofloopsreduced = int(numofloops / self.uf)
-
                 unrolled_body.extend(loop_program)
                 unrolled_body.extend(loop_end_assignment_program)
             return original_assignment_program + [f"{loop_start_label}:"] + expr_program + compare_ins + unrolled_body + branch_ins + [f"{end_label}:"]
-        numofloops = int(re.search(r'\((\d+)\)', expr_program[0]).group(1))
-
-        if self.uf and numofloops%self.uf == 0 and is_eligible():
+        
+        if self.uf and is_eligible():
             return loop_unroll()
         else:
             return original_assignment_program + ["%s:" % (loop_start_label)] + expr_program + compare_ins + loop_program + loop_end_assignment_program + branch_ins + ["%s:" % (end_label)]
